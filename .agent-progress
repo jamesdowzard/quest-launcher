@@ -1,0 +1,10 @@
+# Agent Progress - xr-loader-preload
+# Format: KEY=VALUE, one per line. Agents append, last value wins.
+# Created: 2026-04-11T10:30:10Z
+
+feature=xr-loader-preload
+name=Fix OpenXR loader preload so activeLoader is non-null at runtime
+status=pending
+step=0
+step_name=Not started
+created=2026-04-11T10:30:10Z
