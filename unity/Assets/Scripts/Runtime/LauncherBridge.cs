@@ -23,17 +23,12 @@ public static class LauncherBridge {
     }
 
     public static Texture2D GetIcon(string packageName) {
-#if !UNITY_ANDROID || UNITY_EDITOR
+        // Phase 2 work — decoding PNG bytes needs UnityEngine.ImageConversionModule
+        // wired into the default Assembly-CSharp.dll references (the extension
+        // form Texture2D.LoadImage and the static ImageConversion both fail to
+        // resolve in the inherited template's compile context). Solve when cards
+        // need real icons; Phase 1 only verifies package/label/isVR discovery.
         return null;
-#else
-        using var bridge = new AndroidJavaClass(KOTLIN_CLASS);
-        var ctx = GetContext();
-        var bytes = bridge.CallStatic<byte[]>("getIcon", ctx, packageName);
-        if (bytes == null) return null;
-        var tex = new Texture2D(2, 2);
-        tex.LoadImage(bytes);
-        return tex;
-#endif
     }
 
     public static bool Launch(string packageName) {

@@ -1,9 +1,9 @@
 <?xml version="1.0" encoding="utf-8"?>
 <manifest xmlns:android="http://schemas.android.com/apk/res/android"
           xmlns:tools="http://schemas.android.com/tools">
-  <application android:label="Quest Launcher">
+  <application tools:replace="android:label" android:label="@string/app_name">
     <activity android:name="com.unity3d.player.UnityPlayerGameActivity"
-              android:label="Quest Launcher"
+              android:label="@string/app_name"
               android:theme="@style/BaseUnityGameActivityTheme"
               android:screenOrientation="landscape"
               android:launchMode="singleTask"
