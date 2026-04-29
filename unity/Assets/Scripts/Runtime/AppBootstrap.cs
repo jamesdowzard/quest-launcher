@@ -31,6 +31,20 @@ namespace QuestBase.Runtime
             {
                 Debug.Log($"[AppBootstrap] VR active via: {mgr.activeLoader.name}");
             }
+
+            LogDiscoveredApps();
+        }
+
+        void LogDiscoveredApps()
+        {
+            var apps = LauncherBridge.ListApps();
+            Debug.Log($"[QuestLauncher] Discovered {apps.Count} apps");
+            int sample = System.Math.Min(5, apps.Count);
+            for (int i = 0; i < sample; i++)
+            {
+                var a = apps[i];
+                Debug.Log($"[QuestLauncher]   {a.label} ({a.package}) VR={a.isVR}");
+            }
         }
     }
 }

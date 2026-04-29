@@ -1,8 +1,9 @@
 <?xml version="1.0" encoding="utf-8"?>
 <manifest xmlns:android="http://schemas.android.com/apk/res/android"
           xmlns:tools="http://schemas.android.com/tools">
-  <application>
+  <application tools:replace="android:label" android:label="@string/app_name">
     <activity android:name="com.unity3d.player.UnityPlayerGameActivity"
+              android:label="@string/app_name"
               android:theme="@style/BaseUnityGameActivityTheme"
               android:screenOrientation="landscape"
               android:launchMode="singleTask"
@@ -18,7 +19,26 @@
     <!-- Let OpenXR Meta Quest build hooks set supportedDevices automatically -->
   </application>
 
+  <!-- Quest core -->
   <uses-feature android:name="android.hardware.vr.headtracking" android:required="true" android:version="1" />
-  <uses-feature android:name="oculus.software.handtracking" android:required="false" />
+
+  <!-- Hand-tracking REQUIRED bypasses Meta's "controller required" launch dialog (vr-player gotcha) -->
+  <uses-feature android:name="oculus.software.handtracking" android:required="true" />
   <uses-permission android:name="com.oculus.permission.HAND_TRACKING" />
+
+  <!-- Launcher essentials -->
+  <uses-permission android:name="android.permission.QUERY_ALL_PACKAGES"
+                   tools:ignore="QueryAllPackagesPermission" />
+
+  <!-- Android 11+ package visibility — fallback for stores that strip QUERY_ALL_PACKAGES -->
+  <queries>
+    <intent>
+      <action android:name="android.intent.action.MAIN" />
+      <category android:name="android.intent.category.LAUNCHER" />
+    </intent>
+    <intent>
+      <action android:name="android.intent.action.MAIN" />
+      <category android:name="com.oculus.intent.category.VR" />
+    </intent>
+  </queries>
 </manifest>

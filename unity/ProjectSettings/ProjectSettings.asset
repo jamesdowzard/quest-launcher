@@ -12,8 +12,8 @@ PlayerSettings:
   targetDevice: 2
   useOnDemandResources: 0
   accelerometerFrequency: 60
-  companyName: DefaultCompany
-  productName: Quest App
+  companyName: jamesisan
+  productName: Quest Launcher
   defaultCursor: {fileID: 0}
   cursorHotspot: {x: 0, y: 0}
   m_SplashScreenBackgroundColor: {r: 0.13725491, g: 0.12156863, b: 0.1254902, a: 1}
@@ -211,16 +211,6 @@ PlayerSettings:
   - {fileID: 1940785323570898695, guid: a9a6963505ddf7f4d886008c6dc86122, type: 2}
   - {fileID: 4312871930695646315, guid: a9a6963505ddf7f4d886008c6dc86122, type: 2}
   - {fileID: 3150671951373486854, guid: a9a6963505ddf7f4d886008c6dc86122, type: 2}
-  - {fileID: -8196854396901781169, guid: 1a4c68ca72a83449f938d669337cb305, type: 2}
-  - {fileID: -6546576050900071261, guid: 1a4c68ca72a83449f938d669337cb305, type: 2}
-  - {fileID: 332800863423338148, guid: 1a4c68ca72a83449f938d669337cb305, type: 2}
-  - {fileID: -6517218471499782410, guid: 1a4c68ca72a83449f938d669337cb305, type: 2}
-  - {fileID: 2707690468414890467, guid: a9a6963505ddf7f4d886008c6dc86122, type: 2}
-  - {fileID: -96246732860517567, guid: a9a6963505ddf7f4d886008c6dc86122, type: 2}
-  - {fileID: -5610887122434713325, guid: a9a6963505ddf7f4d886008c6dc86122, type: 2}
-  - {fileID: -3278761436915834721, guid: a9a6963505ddf7f4d886008c6dc86122, type: 2}
-  - {fileID: 8636812807383125148, guid: a9a6963505ddf7f4d886008c6dc86122, type: 2}
-  - {fileID: 468850230583269384, guid: a9a6963505ddf7f4d886008c6dc86122, type: 2}
   metroInputSource: 0
   wsaTransparentSwapchain: 0
   m_HolographicPauseOnTrackingLoss: 1
@@ -242,8 +232,8 @@ PlayerSettings:
   androidMaxAspectRatio: 2.1
   androidMinAspectRatio: 1
   applicationIdentifier:
-    Android: com.example.questapp
-    Standalone: com.Unity-Technologies.VR-Template
+    Android: ai.jamesisan.questlauncher
+    Standalone: ai.jamesisan.questlauncher
   buildNumber:
     Standalone: 0
     VisionOS: 0
