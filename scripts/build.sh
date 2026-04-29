@@ -38,7 +38,7 @@ if [ "$SKIP_SCENE" = false ]; then
     echo ""
     echo "Step 2/3: Setup scene..."
     $UNITY -projectPath "$PROJECT" -batchmode -quit \
-        -executeMethod QuestBase.Editor.QuestBuildTools.SetupModelViewerScene \
+        -executeMethod QuestBase.Editor.QuestBuildTools.SetupLauncherScene \
         -logFile - 2>&1 | grep -E "\[QuestBase\]|error|Error"
     echo "  Done"
 fi

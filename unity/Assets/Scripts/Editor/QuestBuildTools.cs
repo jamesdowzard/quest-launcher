@@ -15,8 +15,11 @@ namespace QuestBase.Editor
     {
         private const string MaterialsPath = "Assets/Materials";
         private const string ScenesPath = "Assets/Scenes";
+        private const string PrefabsPath = "Assets/Prefabs";
         private const string ScenePath = "Assets/Scenes/Main.unity";
         private const string ModelViewerScenePath = "Assets/Scenes/ModelViewer.unity";
+        private const string LauncherScenePath = "Assets/Scenes/Launcher.unity";
+        private const string AppCardPrefabPath = "Assets/Prefabs/AppCard.prefab";
 
         [MenuItem("Quest/Import XRI Samples", false, 0)]
         public static void ImportXRISamples()
@@ -225,13 +228,13 @@ namespace QuestBase.Editor
 
             // Include whichever scene(s) exist. Apps may have just Main, just
             // ModelViewer, or both — skip any that weren't created.
-            var scenes = new[] { ScenePath, ModelViewerScenePath }
+            var scenes = new[] { LauncherScenePath, ScenePath, ModelViewerScenePath }
                 .Where(s => File.Exists(s))
                 .ToArray();
 
             if (scenes.Length == 0)
             {
-                Debug.LogError("[QuestBase] No scenes to build. Run SetupBaseScene or SetupModelViewerScene first.");
+                Debug.LogError("[QuestBase] No scenes to build. Run SetupBaseScene, SetupModelViewerScene, or SetupLauncherScene first.");
                 EditorApplication.Exit(1);
                 return;
             }
@@ -362,6 +365,110 @@ namespace QuestBase.Editor
             }
 
             Debug.Log($"[QuestBase] Model Viewer scene saved to {ModelViewerScenePath}");
+        }
+
+        // --- Launcher Scene (quest-launcher Phase 2) ---
+
+        [MenuItem("Quest/Setup Launcher Scene", false, 7)]
+        public static void SetupLauncherScene()
+        {
+            EnsureDirectory(MaterialsPath);
+            EnsureDirectory(ScenesPath);
+            EnsureDirectory(PrefabsPath);
+
+            ImportXRISamples();
+
+            var cardPrefab = EnsureAppCardPrefab();
+
+            var scene = EditorSceneManager.NewScene(NewSceneSetup.DefaultGameObjects, NewSceneMode.Single);
+
+            CreateUnlitMaterial("RuntimeUnlit", Color.white);
+
+            InstantiateXROrigin();
+
+            var mainCam = Camera.main;
+            if (mainCam != null)
+            {
+                // Passthrough: clear to transparent so MR background bleeds through.
+                mainCam.clearFlags = CameraClearFlags.SolidColor;
+                mainCam.backgroundColor = new Color(0f, 0f, 0f, 0f);
+                mainCam.nearClipPlane = 0.01f;
+                mainCam.farClipPlane = 100f;
+            }
+
+            RenderSettings.ambientMode = UnityEngine.Rendering.AmbientMode.Flat;
+            RenderSettings.ambientLight = HexColor("404040");
+
+            // Shelf anchor at typical eye height; Phase 3 will replace with OVRSpatialAnchor.
+            var shelfRoot = new GameObject("ShelfRoot");
+            shelfRoot.transform.position = new Vector3(0f, 1.4f, 0f);
+            var shelf = shelfRoot.AddComponent<ShelfManager>();
+            SetSerializedField(shelf, "cardPrefab", cardPrefab);
+
+            var bootstrapGO = new GameObject("AppBootstrap");
+            bootstrapGO.AddComponent<QuestBase.Runtime.AppBootstrap>();
+
+            EditorSceneManager.SaveScene(scene, LauncherScenePath);
+
+            // Make Launcher the only scene in the build — Phase 1's smoke test runs
+            // off whichever scene loads, but the launcher is the product entry point.
+            EditorBuildSettings.scenes = new[]
+            {
+                new EditorBuildSettingsScene(LauncherScenePath, true)
+            };
+
+            Debug.Log($"[QuestBase] Launcher scene saved to {LauncherScenePath}");
+        }
+
+        private static GameObject EnsureAppCardPrefab()
+        {
+            var existing = AssetDatabase.LoadAssetAtPath<GameObject>(AppCardPrefabPath);
+            if (existing != null) return existing;
+
+            // Card root: Quad with collider + XRSimpleInteractable, used as the icon surface.
+            var root = GameObject.CreatePrimitive(PrimitiveType.Quad);
+            root.name = "AppCard";
+            root.transform.localScale = new Vector3(0.2f, 0.2f, 1f);
+
+            // Replace default URP/Lit with the runtime unlit material so the icon texture
+            // shows without lighting tricks.
+            var iconMat = AssetDatabase.LoadAssetAtPath<Material>($"{MaterialsPath}/RuntimeUnlit.mat");
+            if (iconMat != null)
+            {
+                root.GetComponent<MeshRenderer>().sharedMaterial = iconMat;
+            }
+
+            // Quad's BoxCollider sits at z=0 with very thin depth — XRI ray casts may miss
+            // edge-on. Beef up to a 0.22 × 0.22 × 0.04 box for forgiving selection.
+            Object.DestroyImmediate(root.GetComponent<MeshCollider>());
+            var box = root.AddComponent<BoxCollider>();
+            box.size = new Vector3(1.1f, 1.1f, 0.2f);
+
+            root.AddComponent<UnityEngine.XR.Interaction.Toolkit.Interactables.XRSimpleInteractable>();
+            var card = root.AddComponent<AppCard>();
+            SetSerializedField(card, "iconRenderer", root.GetComponent<MeshRenderer>());
+
+            // Label: TMP child below the icon.
+            var labelGO = new GameObject("Label");
+            labelGO.transform.SetParent(root.transform, false);
+            labelGO.transform.localPosition = new Vector3(0f, -0.65f, 0f);
+            labelGO.transform.localScale = Vector3.one * 0.05f;
+
+            var tmp = labelGO.AddComponent<TMPro.TextMeshPro>();
+            tmp.alignment = TMPro.TextAlignmentOptions.Center;
+            tmp.fontSize = 4f;
+            tmp.color = Color.white;
+            tmp.text = "App";
+            // Bound TMP to a sane rect so wrap behaves predictably.
+            var rt = tmp.rectTransform;
+            rt.sizeDelta = new Vector2(6f, 1.2f);
+
+            SetSerializedField(card, "labelText", tmp);
+
+            var prefab = PrefabUtility.SaveAsPrefabAsset(root, AppCardPrefabPath);
+            Object.DestroyImmediate(root);
+            Debug.Log($"[QuestBase] AppCard prefab saved to {AppCardPrefabPath}");
+            return prefab;
         }
 
         private const string ModelsPath = "Assets/Models";
