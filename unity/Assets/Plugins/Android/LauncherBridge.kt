@@ -5,10 +5,8 @@ import android.content.Intent
 import android.content.pm.PackageManager
 import android.graphics.Bitmap
 import android.graphics.Canvas
-import android.graphics.drawable.BitmapDrawable
 import org.json.JSONArray
 import org.json.JSONObject
-import java.io.ByteArrayOutputStream
 
 object LauncherBridge {
 
@@ -37,25 +35,30 @@ object LauncherBridge {
         return arr.toString()
     }
 
+    /**
+     * Returns icon as packed [width, height, ...ARGB-pixels] IntArray.
+     * Fixed 128×128 to keep the JNI hop predictable. Skips PNG encode
+     * and the UnityEngine.ImageConversionModule reference dance — C#
+     * rebuilds the Texture2D via SetPixels32 which is in core UnityEngine.dll.
+     */
     @JvmStatic
-    fun getIcon(context: Context, packageName: String): ByteArray? {
+    fun getIconArgb(context: Context, packageName: String): IntArray? {
         val pm = context.packageManager
         return try {
             val drawable = pm.getApplicationIcon(packageName)
-            val bitmap = if (drawable is BitmapDrawable) {
-                drawable.bitmap
-            } else {
-                val w = drawable.intrinsicWidth.coerceAtLeast(128)
-                val h = drawable.intrinsicHeight.coerceAtLeast(128)
-                Bitmap.createBitmap(w, h, Bitmap.Config.ARGB_8888).also { bmp ->
-                    val canvas = Canvas(bmp)
-                    drawable.setBounds(0, 0, w, h)
-                    drawable.draw(canvas)
-                }
+            val w = 128
+            val h = 128
+            val bitmap = Bitmap.createBitmap(w, h, Bitmap.Config.ARGB_8888)
+            val canvas = Canvas(bitmap)
+            drawable.setBounds(0, 0, w, h)
+            drawable.draw(canvas)
+            val pixels = IntArray(w * h)
+            bitmap.getPixels(pixels, 0, w, 0, 0, w, h)
+            IntArray(2 + pixels.size).also {
+                it[0] = w
+                it[1] = h
+                System.arraycopy(pixels, 0, it, 2, pixels.size)
             }
-            val out = ByteArrayOutputStream()
-            bitmap.compress(Bitmap.CompressFormat.PNG, 100, out)
-            out.toByteArray()
         } catch (e: PackageManager.NameNotFoundException) {
             null
         }

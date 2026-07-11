@@ -377,12 +377,15 @@ namespace QuestBase.Editor
             EnsureDirectory(PrefabsPath);
 
             ImportXRISamples();
+            EnsureTMPEssentialResources();
+
+            // Material must exist before EnsureAppCardPrefab so the prefab binds
+            // to it instead of falling through to the Quad's default URP/Lit.
+            CreateUnlitMaterial("RuntimeUnlit", Color.white);
 
             var cardPrefab = EnsureAppCardPrefab();
 
             var scene = EditorSceneManager.NewScene(NewSceneSetup.DefaultGameObjects, NewSceneMode.Single);
-
-            CreateUnlitMaterial("RuntimeUnlit", Color.white);
 
             InstantiateXROrigin();
 
@@ -418,6 +421,32 @@ namespace QuestBase.Editor
             };
 
             Debug.Log($"[QuestBase] Launcher scene saved to {LauncherScenePath}");
+        }
+
+        // TMP_Text in batch mode needs the Essential Resources (font asset, default
+        // shaders) imported once. The first-run dialog never fires under -batchmode,
+        // so labels render blank without this. We import the unitypackage shipped
+        // with the ugui package — runs once, no-op on subsequent builds.
+        private static void EnsureTMPEssentialResources()
+        {
+            const string SentinelPath = "Assets/TextMesh Pro/Resources/TMP Settings.asset";
+            if (File.Exists(SentinelPath)) return;
+
+            var pkgRoot = "Library/PackageCache";
+            if (!Directory.Exists(pkgRoot))
+            {
+                Debug.LogWarning("[QuestBase] TMP Essentials: PackageCache missing; skipping import");
+                return;
+            }
+            var packages = Directory.GetFiles(pkgRoot, "TMP Essential Resources.unitypackage", SearchOption.AllDirectories);
+            if (packages.Length == 0)
+            {
+                Debug.LogWarning("[QuestBase] TMP Essentials: package not found in PackageCache; labels may render blank");
+                return;
+            }
+            Debug.Log($"[QuestBase] Importing TMP Essential Resources from {packages[0]}");
+            AssetDatabase.ImportPackage(packages[0], false);
+            AssetDatabase.Refresh();
         }
 
         private static GameObject EnsureAppCardPrefab()

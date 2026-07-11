@@ -28,10 +28,30 @@ public static class LauncherBridge {
 #else
         using var bridge = new AndroidJavaClass(KOTLIN_CLASS);
         var ctx = GetContext();
-        var bytes = bridge.CallStatic<byte[]>("getIcon", ctx, packageName);
-        if (bytes == null) return null;
-        var tex = new Texture2D(2, 2);
-        ImageConversion.LoadImage(tex, bytes);
+        var packed = bridge.CallStatic<int[]>("getIconArgb", ctx, packageName);
+        if (packed == null || packed.Length < 2) return null;
+        int w = packed[0];
+        int h = packed[1];
+        if (packed.Length != 2 + w * h) return null;
+
+        var pixels = new Color32[w * h];
+        for (int i = 0; i < pixels.Length; i++) {
+            int argb = packed[2 + i];
+            pixels[i] = new Color32(
+                (byte)((argb >> 16) & 0xFF),
+                (byte)((argb >> 8) & 0xFF),
+                (byte)(argb & 0xFF),
+                (byte)((argb >> 24) & 0xFF));
+        }
+        // Bitmap pixels are top-down; Texture2D expects bottom-up.
+        var flipped = new Color32[pixels.Length];
+        for (int y = 0; y < h; y++) {
+            System.Array.Copy(pixels, y * w, flipped, (h - 1 - y) * w, w);
+        }
+
+        var tex = new Texture2D(w, h, TextureFormat.RGBA32, false);
+        tex.SetPixels32(flipped);
+        tex.Apply(false, false);
         return tex;
 #endif
     }
