@@ -98,11 +98,17 @@ if [ "$SKIP_CONFIGURE" = false ]; then
 fi
 
 # Deliberately NOT gated behind --skip-scene. AssetDatabase.ImportPackage is
-# async, so the essentials must be imported by a Unity process that then exits;
-# doing it mid-build is unreliable. TMPEssentialsBuildGuard fails the build if
-# this was skipped, rather than shipping an APK whose every label throws.
+# asynchronous and its completion callback only fires while the editor loop is
+# pumping, so under -batchmode -quit it logs "Importing..." and does nothing —
+# measured: build/logs/2-tmp-essentials.log found the package, then the sentinel
+# was still absent. We extract the unitypackage directly instead, which keeps
+# Unity off the critical path. TMPEssentialsBuildGuard still fails the build if
+# the essentials are somehow absent, rather than shipping label-less cards.
 if [ "$SKIP_TMP" = false ]; then
-    run_unity "2-tmp-essentials" QuestBase.Editor.QuestBuildTools.EnsureTMPEssentials
+    echo ""
+    echo "2-tmp-essentials: scripts/import-tmp-essentials.py"
+    python3 "$REPO/scripts/import-tmp-essentials.py" | sed 's/^/  /'
+    echo "  Done"
 fi
 
 if [ "$SKIP_SCENE" = false ]; then

@@ -410,10 +410,11 @@ namespace QuestBase.Editor
 
         // --- Launcher Scene (quest-launcher Phase 2) ---
 
-        // Standalone entry point for scripts/build.sh. AssetDatabase.ImportPackage is
-        // asynchronous even under -batchmode, so the reliable way to guarantee the
-        // essentials are on disk before a build is to import them in a Unity process
-        // that then exits — not mid-build.
+        // Interactive convenience only. AssetDatabase.ImportPackage is asynchronous
+        // and its callback needs a pumping editor loop, so this does nothing useful
+        // under -batchmode -quit — scripts/build.sh uses import-tmp-essentials.py,
+        // which extracts the unitypackage directly, and TMPEssentialsBuildGuard
+        // verifies the result.
         [MenuItem("Quest/Ensure TMP Essentials", false, 6)]
         public static void EnsureTMPEssentials()
         {
@@ -957,9 +958,9 @@ namespace QuestBase.Editor
                 throw new BuildFailedException(
                     $"[QuestBase] TMP Essential Resources missing ({QuestBuildTools.TMPSentinelPath}). "
                     + "Every TextMeshPro component will throw at runtime and all labels will be blank. "
-                    + "Run `Quest > Ensure TMP Essentials` (or -executeMethod "
-                    + "QuestBase.Editor.QuestBuildTools.EnsureTMPEssentials) in its own Unity invocation, "
-                    + "then rebuild. ImportPackage is async, so it cannot be relied on mid-build.");
+                    + "Run `python3 scripts/import-tmp-essentials.py`, then rebuild. "
+                    + "Do NOT rely on AssetDatabase.ImportPackage under -batchmode: it is async and the "
+                    + "editor quits before its callback fires, so it reports success and imports nothing.");
             }
         }
     }
