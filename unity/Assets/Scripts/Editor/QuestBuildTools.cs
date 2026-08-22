@@ -5,6 +5,7 @@ using UnityEditor.SceneManagement;
 using UnityEditor.Build.Reporting;
 using UnityEditor.PackageManager.UI;
 using UnityEditor.Compilation;
+using UnityEngine.XR.Management;
 using System.IO;
 using System.Linq;
 using System.Collections.Generic;
@@ -20,6 +21,7 @@ namespace QuestBase.Editor
         private const string ModelViewerScenePath = "Assets/Scenes/ModelViewer.unity";
         private const string LauncherScenePath = "Assets/Scenes/Launcher.unity";
         private const string AppCardPrefabPath = "Assets/Prefabs/AppCard.prefab";
+        internal const string TMPSentinelPath = "Assets/TextMesh Pro/Resources/TMP Settings.asset";
 
         [MenuItem("Quest/Import XRI Samples", false, 0)]
         public static void ImportXRISamples()
@@ -78,75 +80,114 @@ namespace QuestBase.Editor
             Debug.Log("[QuestBase] XR settings configured for Quest 3 (Android, ARM64, IL2CPP, GameActivity)");
         }
 
-        // Unity's XRGeneralBuildProcessor normally injects XRGeneralSettings, its
-        // XRManagerSettings Manager sub-object, and each active loader into
-        // PlayerSettings.preloadedAssets at build time. On this repo it either
-        // doesn't run or only picks up the top-level settings, so the loader
-        // ScriptableObject gets stripped from the player — XRGeneralSettings.Instance
-        // loads but .Manager.activeLoaders is empty at runtime. We replicate the
-        // preload here so the Open XR Loader is guaranteed to be in the APK.
+        // Unity's XRGeneralBuildProcessor injects the XRGeneralSettings for the
+        // ACTIVE build target — and only that one — into PlayerSettings.preloadedAssets
+        // (see XRGeneralBuildProcessor.cs:158, SettingsForBuildTarget(targetGroup)).
+        // On this repo it either doesn't run or only picks up the top-level container,
+        // so the loader ScriptableObject gets stripped from the player. We replicate
+        // the preload here.
+        //
+        // The target filter is load-bearing, not tidiness. XRGeneralSettings.Awake()
+        // does `s_RuntimeSettingsInstance = this` unconditionally, with no build-target
+        // check, so every preloaded XRGeneralSettings overwrites the last one and the
+        // winner is whichever Unity happens to Awake last. Assets/XR/XRGeneralSettings.asset
+        // holds four — Android and Standalone carry the OpenXR loader, iPhone and Lumin
+        // have `m_Loaders: []` — so preloading all four is a coin flip between a working
+        // XR stack and `activeLoader=null loaderCount=0` at runtime. Note that
+        // XRManagerSettings.activeLoaders IS m_Loaders (XRManagerSettings.cs:125), the
+        // serialized configuration, so an empty count means the wrong settings object
+        // won, NOT that a loader failed to start.
         public static void EnsureXRPreloadedAssets()
         {
             const string GeneralSettingsPath = "Assets/XR/XRGeneralSettings.asset";
-            const string OpenXRLoaderPath = "Assets/XR/Loaders/Open XR Loader.asset";
-            const string OpenXRPackagePath = "Assets/XR/Settings/OpenXRPackageSettings.asset";
+            const BuildTargetGroup TargetGroup = BuildTargetGroup.Android;
 
-            // Editor-only types whose runtime stubs have a different serialization
-            // layout — preloading them emits "Read X bytes but expected Y bytes"
-            // warnings on the player. They're containers; we only need the actual
-            // per-platform XRGeneralSettings, XRManagerSettings and loader assets.
-            bool IsEditorOnly(UnityEngine.Object o)
+            var allInAsset = File.Exists(GeneralSettingsPath)
+                ? AssetDatabase.LoadAllAssetsAtPath(GeneralSettingsPath)
+                : new UnityEngine.Object[0];
+
+            if (allInAsset.Length == 0)
             {
-                var n = o.GetType().Name;
-                return n == "XRGeneralSettingsPerBuildTarget" || n == "OpenXRPackageSettings";
+                Debug.LogWarning($"[QuestBase] Missing {GeneralSettingsPath} — XR preload skipped");
+                return;
+            }
+
+            var perTarget = allInAsset
+                .OfType<UnityEditor.XR.Management.XRGeneralSettingsPerBuildTarget>()
+                .FirstOrDefault();
+
+            var settings = perTarget != null ? perTarget.SettingsForBuildTarget(TargetGroup) : null;
+            if (settings == null)
+            {
+                Debug.LogError($"[QuestBase] No XRGeneralSettings for {TargetGroup} in {GeneralSettingsPath} — "
+                             + "open Project Settings > XR Plug-in Management and enable OpenXR for Android");
+                return;
+            }
+
+            var manager = settings.Manager;
+            if (manager == null)
+            {
+                Debug.LogError($"[QuestBase] {settings.name} has no XRManagerSettings — XR cannot initialise at runtime");
+                return;
+            }
+
+            var loaders = (manager.activeLoaders ?? new List<XRLoader>())
+                .Where(l => l != null)
+                .Cast<UnityEngine.Object>()
+                .ToList();
+
+            if (loaders.Count == 0)
+            {
+                Debug.LogError($"[QuestBase] {manager.name} has no loaders — enable the OpenXR Loader for {TargetGroup}");
+                return;
+            }
+
+            // Anything of these types that isn't our chosen pair is another build
+            // target's settings and must be evicted, not merely skipped — a previous
+            // run of this method (or Unity's own) may already have preloaded them.
+            bool IsForeignXRSettings(UnityEngine.Object o)
+            {
+                if (o is XRGeneralSettings gs) return gs != settings;
+                if (o is XRManagerSettings ms) return ms != manager;
+                // Editor-only container; its runtime stub has a different serialization
+                // layout and emits "Read X bytes but expected Y bytes" on the player.
+                return o is UnityEditor.XR.Management.XRGeneralSettingsPerBuildTarget;
             }
 
             var current = (PlayerSettings.GetPreloadedAssets() ?? new UnityEngine.Object[0])
-                .Where(o => o != null && !IsEditorOnly(o))
+                .Where(o => o != null)
                 .ToList();
             int before = current.Count;
-            var added = new List<string>();
 
+            var evicted = current.Where(IsForeignXRSettings).Select(o => $"{o.name}:{o.GetType().Name}").ToList();
+            current.RemoveAll(o => IsForeignXRSettings(o));
+
+            var added = new List<string>();
             void Add(UnityEngine.Object obj)
             {
-                if (obj == null) return;
-                if (IsEditorOnly(obj)) return;
-                if (current.Contains(obj)) return;
+                if (obj == null || current.Contains(obj)) return;
                 current.Add(obj);
                 added.Add($"{obj.name}:{obj.GetType().Name}");
             }
 
-            if (File.Exists(GeneralSettingsPath))
-            {
-                foreach (var o in AssetDatabase.LoadAllAssetsAtPath(GeneralSettingsPath))
-                    Add(o);
-            }
-            else
-            {
-                Debug.LogWarning($"[QuestBase] Missing {GeneralSettingsPath} — XR preload skipped");
-            }
-
-            var loader = AssetDatabase.LoadAssetAtPath<UnityEngine.Object>(OpenXRLoaderPath);
-            if (loader != null)
-            {
-                Add(loader);
-            }
-            else
-            {
-                Debug.LogWarning($"[QuestBase] Missing {OpenXRLoaderPath} — loader will not activate at runtime");
-            }
-
-            if (File.Exists(OpenXRPackagePath))
-            {
-                foreach (var o in AssetDatabase.LoadAllAssetsAtPath(OpenXRPackagePath))
-                    Add(o);
-            }
+            Add(settings);
+            Add(manager);
+            foreach (var l in loaders) Add(l);
 
             PlayerSettings.SetPreloadedAssets(current.ToArray());
 
+            Debug.Log($"[QuestBase] XR preload for {TargetGroup}: using '{settings.name}' -> '{manager.name}' "
+                    + $"with {loaders.Count} loader(s): {string.Join(", ", loaders.Select(l => l.name))}");
             Debug.Log($"[QuestBase] XR preloaded assets: {before} -> {current.Count}");
             if (added.Count > 0)
                 Debug.Log($"[QuestBase] Added to preload: {string.Join(", ", added)}");
+            if (evicted.Count > 0)
+                Debug.Log($"[QuestBase] Evicted foreign-target XR settings from preload: {string.Join(", ", evicted)}");
+
+            int generalCount = current.Count(o => o is XRGeneralSettings);
+            if (generalCount != 1)
+                Debug.LogError($"[QuestBase] {generalCount} XRGeneralSettings in preload — must be exactly 1, "
+                             + "or Awake() ordering decides which one wins at runtime");
         }
 
         [MenuItem("Quest/Setup Base Scene", false, 5)]
@@ -369,6 +410,20 @@ namespace QuestBase.Editor
 
         // --- Launcher Scene (quest-launcher Phase 2) ---
 
+        // Standalone entry point for scripts/build.sh. AssetDatabase.ImportPackage is
+        // asynchronous even under -batchmode, so the reliable way to guarantee the
+        // essentials are on disk before a build is to import them in a Unity process
+        // that then exits — not mid-build.
+        [MenuItem("Quest/Ensure TMP Essentials", false, 6)]
+        public static void EnsureTMPEssentials()
+        {
+            EnsureTMPEssentialResources();
+            AssetDatabase.SaveAssets();
+            Debug.Log(File.Exists(TMPSentinelPath)
+                ? $"[QuestBase] TMP essentials present at {TMPSentinelPath}"
+                : $"[QuestBase] TMP essentials STILL MISSING at {TMPSentinelPath}");
+        }
+
         [MenuItem("Quest/Setup Launcher Scene", false, 7)]
         public static void SetupLauncherScene()
         {
@@ -427,10 +482,9 @@ namespace QuestBase.Editor
         // shaders) imported once. The first-run dialog never fires under -batchmode,
         // so labels render blank without this. We import the unitypackage shipped
         // with the ugui package — runs once, no-op on subsequent builds.
-        private static void EnsureTMPEssentialResources()
+        public static void EnsureTMPEssentialResources()
         {
-            const string SentinelPath = "Assets/TextMesh Pro/Resources/TMP Settings.asset";
-            if (File.Exists(SentinelPath)) return;
+            if (File.Exists(TMPSentinelPath)) return;
 
             var pkgRoot = "Library/PackageCache";
             if (!Directory.Exists(pkgRoot))
@@ -876,6 +930,37 @@ namespace QuestBase.Editor
             if (ColorUtility.TryParseHtmlString("#" + hex, out Color color))
                 return color;
             return Color.white;
+        }
+    }
+
+    // TMP_Text resolves its default font asset through TMP_Settings, which only
+    // exists once the Essential Resources are imported. Without them every
+    // TextMeshPro Awake() throws a NullReferenceException and cards render label-less.
+    //
+    // EnsureTMPEssentialResources is called from SetupLauncherScene, so building via
+    // BuildAPK directly (or scripts/build.sh --skip-scene) silently skipped it and
+    // produced an APK whose labels always throw. An hour of build time to find out at
+    // runtime is the wrong trade: fail here instead, in seconds.
+    public class TMPEssentialsBuildGuard : IPreprocessBuildWithReport
+    {
+        public int callbackOrder => 100;
+
+        public void OnPreprocessBuild(BuildReport report)
+        {
+            if (report.summary.platformGroup != BuildTargetGroup.Android)
+                return;
+
+            QuestBuildTools.EnsureTMPEssentialResources();
+
+            if (!File.Exists(QuestBuildTools.TMPSentinelPath))
+            {
+                throw new BuildFailedException(
+                    $"[QuestBase] TMP Essential Resources missing ({QuestBuildTools.TMPSentinelPath}). "
+                    + "Every TextMeshPro component will throw at runtime and all labels will be blank. "
+                    + "Run `Quest > Ensure TMP Essentials` (or -executeMethod "
+                    + "QuestBase.Editor.QuestBuildTools.EnsureTMPEssentials) in its own Unity invocation, "
+                    + "then rebuild. ImportPackage is async, so it cannot be relied on mid-build.");
+            }
         }
     }
 
