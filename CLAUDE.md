@@ -70,3 +70,22 @@ Inherited from `unity-quest-base`. Full reference in template README. Quick path
 - Design: [`docs/plans/2026-04-28-quest-launcher-design.md`](docs/plans/2026-04-28-quest-launcher-design.md)
 - Impl plan: [`docs/plans/2026-04-28-quest-launcher-implementation.md`](docs/plans/2026-04-28-quest-launcher-implementation.md)
 - Dossier: `~/code/personal/dossiers/quest-launcher/`
+
+## Quest device control
+
+Device state, headless verification and logs live in `~/code/personal/quest/`
+(CLI `quest …`, MCP `mcp__quest__*`, skill `/quest`). Do not hand-roll `adb`
+for these.
+
+- **Never ask James to wear the headset.** `quest device force-worn` disarms the
+  proximity sensor so XR apps render at full frame rate with it on a desk.
+  Survives reboot.
+- **`adb logcat -s` matches tags EXACTLY.** Rust `android_logger` tags by module
+  path (`crate::mod::sub`), so exact-match filters hide almost everything and
+  mimic a hung app. Use `quest device logcat --prefix <crate>`.
+- **Only one immersive app holds the slot.** `am start` succeeding with no
+  process forked means another VR app owns it — force-stop it first.
+- **Screenshots are 8-bit** — fine for layout and gross brightness, useless for
+  banding or bit-depth questions.
+- `quest device extensions <pkg>` names the exact manifest string any gated
+  OpenXR extension is missing.
