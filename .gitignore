@@ -36,3 +36,5 @@ screenshots/
 # OS
 .DS_Store
 Thumbs.db
+.agent-context
+.agent-progress
