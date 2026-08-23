@@ -32,11 +32,10 @@ quest-launcher/
 │   │   └── Scenes/                 # Launcher.unity (replaces Main.unity)
 │   ├── Packages/manifest.json      # +com.meta.xr.sdk.spatialanchors
 │   └── ProjectSettings/
-├── shared/
-│   └── manifests/                  # favourites.yaml — symlinks ~/code/personal/quest/sideload.yaml format
-├── docs/plans/
-│   ├── 2026-04-28-quest-launcher-design.md
-│   └── 2026-04-28-quest-launcher-implementation.md
+├── helper/                         # companion APK — AndroidManifest.xml, build.sh,
+│                                   #   src/com/jhg/questhelper/HelperActivity.java
+├── docs/
+│   └── plans/                      # design + implementation plans
 └── scripts/                        # build.sh, logcat.sh, screenshot.sh (template-inherited)
 ```
 
