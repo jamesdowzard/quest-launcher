@@ -4,10 +4,6 @@ Custom Quest 3 launcher — a mixed-reality app shelf you pin to your room. Brow
 
 **Why:** Sideloaded apps are buried under Library → Unknown Sources. The native Universal Menu pin is shallow. This is a more interesting answer: an MR shelf with passthrough + spatial anchors that lives wherever you place it in your room.
 
-## Status
-
-Scaffolded 2026-04-28 from `unity-quest-base`. **No implementation yet** — design + impl plan committed, GH issues raised. See `docs/plans/`.
-
 ## Stack
 
 | Item | Value |
